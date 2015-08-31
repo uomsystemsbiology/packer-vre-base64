@@ -1,0 +1,164 @@
+{"variables": {
+    "aws_access_key": "",
+    "aws_secret_key": "",
+    "docker_username": "",
+    "docker_email": "",
+    "docker_password": "",
+    "atlas_token": ""
+  },
+  "provisioners": [
+    {
+          "type": "shell",
+          "execute_command": "echo 'ubuntu' | {{.Vars}} sudo -E -S bash '{{.Path}}'",
+              "scripts": [
+            "scripts/setup_users.sh"
+        ]
+        },
+    	{
+      "type": "shell",
+      "execute_command": "echo 'sbl' | {{.Vars}} sudo -E -S bash '{{.Path}}'",
+          "scripts": [
+            "scripts/base.sh",
+            "scripts/vagrant.sh"
+          ]
+        },
+        {
+	  "type": "shell",
+	  "only": ["virtualbox-iso"],
+	  "execute_command": "echo 'sbl' | {{.Vars}} sudo -E -S bash '{{.Path}}'",
+	  "script": "scripts/virtualbox.sh"	  
+	},
+	{
+	  "type": "shell",
+	  "only": ["docker"],
+	  "execute_command": "echo 'sbl' | {{.Vars}} sudo -E -S bash '{{.Path}}'",
+	  "script": "scripts/setup_docker_baseimage.sh"	  
+	},
+	{
+	  "type": "shell",
+	  "except": ["docker"], 
+	  "execute_command": "echo 'sbl' | {{.Vars}} sudo -E -S bash '{{.Path}}'",
+	  "scripts": [
+	    "scripts/desktop.sh",
+	    "scripts/desktop_applications.sh",
+	    "scripts/setup_remote_desktops.sh"
+            ]
+          },
+	{
+	  "type": "shell",
+	  "execute_command": "echo 'sbl' | {{.Vars}} sudo -E -S bash '{{.Path}}'",
+	  "scripts": [
+	    "scripts/cleanup.sh",
+	    "scripts/zerodisk.sh"
+	    ]
+	}
+  ],
+  "builders": [
+    {
+      "type": "virtualbox-iso",
+      "output_directory": "output/virtualbox-iso",
+      "boot_command": [
+        "<esc><wait>",
+        "<esc><wait>",
+        "<enter><wait>",
+        "/install/vmlinuz<wait>",
+        " auto<wait>",
+        " console-setup/ask_detect=false<wait>",
+        " console-setup/layoutcode=us<wait>",
+        " console-setup/modelcode=pc105<wait>",
+        " debconf/frontend=noninteractive<wait>",
+        " debian-installer=en_US<wait>",
+        " fb=false<wait>",
+        " initrd=/install/initrd.gz<wait>",
+        " kbd-chooser/method=us<wait>",
+        " keyboard-configuration/layout=USA<wait>",
+        " keyboard-configuration/variant=USA<wait>",
+        " locale=en_US<wait>",
+        " netcfg/get_hostname=ubuntu-1404<wait>",
+        " netcfg/get_domain=vagrantup.com<wait>",
+        " noapic<wait>",
+        " preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg<wait>",
+        " -- <wait>",
+        "<enter><wait>"
+      ],
+      "boot_wait": "10s",
+      "disk_size": 20480,
+      "guest_os_type": "Ubuntu_64",
+      "http_directory": "http",
+      "iso_checksum": "83aabd8dcf1e8f469f3c72fff2375195",
+      "iso_checksum_type": "md5",
+      "iso_url": "http://releases.ubuntu.com/14.04/ubuntu-14.04.2-server-amd64.iso",
+      "ssh_username": "ubuntu",
+      "ssh_password": "ubuntu",
+      "ssh_port": 22,
+      "ssh_wait_timeout": "10000s",
+      "shutdown_command": "echo 'shutdown -P now' > /tmp/shutdown.sh; echo 'vagrant'|sudo -S sh '/tmp/shutdown.sh'",
+      "vboxmanage": [
+        [ "modifyvm", "{{.Name}}", "--memory", "2048" ],
+        [ "modifyvm", "{{.Name}}", "--cpus", "1" ],
+        [ "modifyvm", "{{.Name}}", "--vram", "12" ]
+      ]
+    },
+    {
+        "type": "amazon-ebs",
+        "access_key": "{{user `aws_access_key`}}",
+        "secret_key": "{{user `aws_secret_key`}}",
+        "region": "us-west-2",
+        "source_ami": "ami-1fa78f2f",
+        "instance_type": "t2.micro",
+        "ssh_username": "ubuntu",
+        "ami_name": "uomsystemsbiology/base64-aws_{{timestamp}}",
+        "ami_groups": "all"
+  },
+  {
+  	"type": "docker",
+  	"image": "phusion/baseimage",
+  	"commit": true
+   }
+    ],
+    "post-processors": [
+            	[{
+		    "type": "docker-tag",
+		    "only": ["docker"],
+		    "repository": "uomsystemsbiology/base-docker",
+		    "tag": "latest"
+		},
+		{
+		"type": "docker-push",
+		"only": ["docker"],
+		"login": true,
+		"login_email": "{{user `docker_email`}}",
+		"login_username": "{{user `docker_username`}}",
+		"login_password": "{{user `docker_password`}}",
+		"repository": "uomsystemsbiology/base-docker"
+		}],         
+                [{
+		  "type": "vagrant",
+		  "except": ["docker"],
+		  "output": "output/uomsystemsbiology_base64_{{.Provider}}.box",
+		  "keep_input_artifact": true
+		},   		
+		{
+		            "type": "atlas",
+		            "token": "{{user `atlas_token`}}",
+		            "only": ["amazon-ebs"],
+		            "artifact": "uomsystemsbiology/base64-aws",
+		            "artifact_type": "vagrant.box",
+		            "metadata": {
+		                "provider": "aws",
+		                "version": "0.0.3"
+		 		}
+		 },
+		 {
+		            "type": "atlas",
+		            "token": "{{user `atlas_token`}}",
+		            "only": ["virtualbox-iso"],
+		            "artifact": "uomsystemsbiology/base64-vbox",
+		            "artifact_type": "vagrant.box",
+		            "metadata": {
+		                "provider": "virtualbox",
+		                "version": "0.0.3"
+		                }
+		 }]
+      	]
+}

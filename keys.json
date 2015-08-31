@@ -1,0 +1,8 @@
+{
+  "aws_access_key": "XXXXXX",
+  "aws_secret_key": "XXXXXX",
+  "docker_username": "XXXXXX",
+  "docker_email": "XXXXXX",
+  "docker_password": "XXXXXX",
+  "atlas_token": "XXXXXX"
+}
